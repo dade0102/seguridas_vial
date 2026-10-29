@@ -1,21 +1,22 @@
--- Lee directamente del source: SEGURIDAD_VIAL_DB.BRONCE.PERSONAS (Estructura Airbyte)
+-- models/plata/plata_personas.sql
+-- Limpieza de PERSONAS (maestro)
+-- Lee directamente del source: SEGURIDAD_VIAL_DB.BRONCE.PERSONAS
 -- Granularidad: 1 fila = 1 persona del pool
 -- Destino: SEGURIDAD_VIAL_DB.PLATA.PLATA_PERSONAS
 
 WITH fuente_bruta AS (
     SELECT 
-        -- Mapeamos explícitamente usando NUMERO_DOCUMENTO
-        COALESCE(NUMERO_DOCUMENTO, numero_documento) AS numero_documento,
-        COALESCE(TIPO_DOCUMENTO, tipo_documento) AS tipo_documento,
-        COALESCE(NOMBRES, nombres) AS nombres,
-        COALESCE(APELLIDOS, apellidos) AS apellidos,
-        COALESCE(FECHA_NACIMIENTO, fecha_nacimiento) AS fecha_nacimiento,
-        COALESCE(EDAD_DECLARA, edad_declara) AS edad_declara,
-        COALESCE(GENERO, genero) AS genero,
-        COALESCE(NUMERO_LICENCIA, numero_licencia) AS numero_licencia,
-        COALESCE(CATEGORIA_LICENCIA, categoria_licencia) AS categoria_licencia,
-        COALESCE(TELEFONO, telefono) AS telefono,
-        COALESCE(PERFIL_RIESGO, perfil_riesgo) AS perfil_riesgo
+        NUMERO_DOCUMENTO AS numero_documento,
+        TIPO_DOCUMENTO AS tipo_documento,
+        NOMBRES AS nombres,
+        APELLIDOS AS apellidos,
+        FECHA_NACIMIENTO AS fecha_nacimiento,
+        EDAD_DECLARADA AS edad_declarada,
+        GENERO AS genero,
+        NUMERO_LICENCIA AS numero_licencia,
+        CATEGORIA_LICENCIA AS categoria_licencia,
+        TELEFONO AS telefono,
+        PERFIL_RIESGO AS perfil_riesgo
     FROM {{ source('la_paz_vial', 'PERSONAS') }}
 ),
 
@@ -76,10 +77,10 @@ normalizado AS (
            EDAD DECLARADA
            ========================================================= */
         CASE
-            WHEN edad_declara IS NULL THEN NULL
-            WHEN TRY_TO_NUMBER(CAST(edad_declara AS VARCHAR)) < 0 THEN NULL
-            WHEN TRY_TO_NUMBER(CAST(edad_declara AS VARCHAR)) > 120 THEN NULL
-            ELSE TRY_TO_NUMBER(CAST(edad_declara AS VARCHAR))
+            WHEN edad_declarada IS NULL THEN NULL
+            WHEN TRY_TO_NUMBER(CAST(edad_declarada AS VARCHAR)) < 0 THEN NULL
+            WHEN TRY_TO_NUMBER(CAST(edad_declarada AS VARCHAR)) > 120 THEN NULL
+            ELSE TRY_TO_NUMBER(CAST(edad_declarada AS VARCHAR))
         END AS edad_declarada,
 
         /* =========================================================
