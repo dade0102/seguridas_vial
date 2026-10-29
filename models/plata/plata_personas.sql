@@ -4,8 +4,8 @@
 
 WITH fuente_bruta AS (
     SELECT 
-        -- Mapeamos explícitamente desde las columnas de Snowflake
-        COALESCE(NUMERO_DOC, numero_doc) AS numero_doc,
+        -- Mapeamos explícitamente usando NUMERO_DOCUMENTO
+        COALESCE(NUMERO_DOCUMENTO, numero_documento) AS numero_documento,
         COALESCE(TIPO_DOCUMENTO, tipo_documento) AS tipo_documento,
         COALESCE(NOMBRES, nombres) AS nombres,
         COALESCE(APELLIDOS, apellidos) AS apellidos,
@@ -22,8 +22,8 @@ WITH fuente_bruta AS (
 deduplicado AS (
     SELECT *,
         ROW_NUMBER() OVER (
-            PARTITION BY numero_doc
-            ORDER BY numero_doc
+            PARTITION BY numero_documento
+            ORDER BY numero_documento
         ) AS rn
     FROM fuente_bruta
 ),
@@ -44,7 +44,7 @@ normalizado AS (
         /* =========================================================
            IDENTIFICACIÓN
            ========================================================= */
-        TRIM(UPPER(CAST(numero_doc AS VARCHAR))) AS numero_documento,
+        TRIM(UPPER(CAST(numero_documento AS VARCHAR))) AS numero_documento_val,
 
         TRIM(UPPER(
             CASE
@@ -148,7 +148,7 @@ normalizado AS (
    RESULTADO FINAL
    ============================================================= */
 SELECT
-    numero_documento,
+    numero_documento_val AS numero_documento,
     tipo_documento,
     nombres,
     apellidos,
@@ -161,6 +161,6 @@ SELECT
     telefono,
     perfil_riesgo
 FROM normalizado
-WHERE numero_documento IS NOT NULL
-  AND TRIM(numero_documento) != ''
-  AND UPPER(TRIM(numero_documento)) != 'SIN_DOCUMENTO'
+WHERE numero_documento_val IS NOT NULL
+  AND TRIM(numero_documento_val) != ''
+  AND UPPER(TRIM(numero_documento_val)) != 'SIN_DOCUMENTO'
