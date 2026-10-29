@@ -10,8 +10,8 @@ WITH fuente_bruta AS (
         TIPO_VEHICULO AS tipo_vehiculo,
         MARCA AS marca,
         MODELO AS modelo,
-        -- Mapeamos con el nombre exacto que viene en la tabla Bronce
-        ANIO_FABRICAC AS anio_fabricacion,
+        -- Mapeamos con el nombre exacto que viene en la tabla Bronce de Snowflake
+        ANIO_FABRICACION AS anio_fabricacion,
         COLOR AS color,
         DOCUMENTO_PROPIETARIO AS documento_propietario
     FROM {{ source('la_paz_vial', 'VEHICULOS') }}

@@ -1,154 +1,153 @@
--- models/plata/plata_accidentes.sql
-
 WITH fuente_bruta AS (
     SELECT *
     FROM {{ source('la_paz_vial', 'ACCIDENTES') }}
 ),
 
--- 1. DEDUPLICACION: quedarse con 1 fila por id_reporte_accidente
+-- 1. DEDUPLICACION: quedarse con 1 fila por ID_REPORTE_ACCIDENTE
 deduplicado AS (
     SELECT *,
         ROW_NUMBER() OVER (
-            PARTITION BY id_reporte_accidente
-            ORDER BY fecha_hora DESC
+            PARTITION BY ID_REPORTE_ACCIDENTE
+            ORDER BY FECHA_HORA DESC
         ) AS rn
     FROM fuente_bruta
 ),
 
--- 2. PARSEO DE FECHAS (multiformato por si acaso y manejo seguro de tipos)
+-- 2. PARSEO DE FECHAS (multiformato incluyendo milisegundos de Snowflake)
 fechas_parseadas AS (
     SELECT *,
         COALESCE(
-            TRY_TO_TIMESTAMP(CAST(fecha_hora AS VARCHAR), 'YYYY-MM-DD HH24:MI:SS'),
-            TRY_TO_TIMESTAMP(CAST(fecha_hora AS VARCHAR), 'YYYY-MM-DD HH24:MI'),
-            TRY_TO_TIMESTAMP(CAST(fecha_hora AS VARCHAR), 'YYYY-MM-DD'),
-            TRY_TO_TIMESTAMP(CAST(fecha_hora AS VARCHAR), 'DD/MM/YYYY HH24:MI:SS'),
-            TRY_TO_TIMESTAMP(CAST(fecha_hora AS VARCHAR), 'DD/MM/YYYY'),
-            TRY_CAST(fecha_hora AS TIMESTAMP_NTZ)
+            TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD HH24:MI:SS.FF3'),
+            TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD HH24:MI:SS'),
+            TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD HH24:MI'),
+            TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD'),
+            TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'DD/MM/YYYY HH24:MI:SS'),
+            TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'DD/MM/YYYY'),
+            TRY_CAST(FECHA_HORA AS TIMESTAMP_NTZ)
         ) AS fecha_hora_parsed
     FROM deduplicado
     WHERE rn = 1
 ),
 
--- 3. NORMALIZACION DE TEXTOS Y CATEGORIAS (todo en mayusculas conservando la Ñ)
+-- 3. NORMALIZACION DE TEXTOS Y CATEGORIAS
 normalizado AS (
     SELECT
-        id_reporte_accidente,
+        ID_REPORTE_ACCIDENTE AS id_reporte_accidente,
         fecha_hora_parsed AS fecha_hora,
 
-        -- Fecha descompuesta (util para joins y agregaciones)
+        -- Fecha descompuesta
         YEAR(fecha_hora_parsed) AS anio,
         MONTH(fecha_hora_parsed) AS mes,
         DAY(fecha_hora_parsed) AS dia,
         HOUR(fecha_hora_parsed) AS hora,
         DAYOFWEEK(fecha_hora_parsed) AS dia_semana,
 
-        -- Macrodistrito: estandarizar a mayusculas (respetando Ñ)
+        -- Macrodistrito
         TRIM(UPPER(
             CASE 
-                WHEN macrodistrito IS NULL OR TRIM(macrodistrito) = '' THEN 'NO ESPECIFICADO'
-                ELSE macrodistrito 
+                WHEN MACRODISTRITO IS NULL OR TRIM(MACRODISTRITO) = '' THEN 'NO ESPECIFICADO'
+                ELSE MACRODISTRITO 
             END
         )) AS macrodistrito,
 
-        -- Barrio: estandarizar a mayusculas (respetando Ñ)
+        -- Barrio
         TRIM(UPPER(
             CASE 
-                WHEN zona_barrio IS NULL OR TRIM(zona_barrio) = '' THEN 'NO ESPECIFICADO'
-                ELSE zona_barrio 
+                WHEN ZONA_BARRIO IS NULL OR TRIM(ZONA_BARRIO) = '' THEN 'NO ESPECIFICADO'
+                ELSE ZONA_BARRIO 
             END
         )) AS zona_barrio,
 
-        -- Direccion: limpiar espacios y llevar a mayusculas (respetando Ñ)
-        REGEXP_REPLACE(TRIM(UPPER(direccion_exacta)), '\\s+', ' ') AS direccion_exacta,
-        REGEXP_REPLACE(TRIM(UPPER(calle_principal)), '\\s+', ' ') AS calle_principal,
-        REGEXP_REPLACE(TRIM(UPPER(calle_secundaria)), '\\s+', ' ') AS calle_secundaria,
+        -- Direcciones
+        REGEXP_REPLACE(TRIM(UPPER(DIRECCION_EXACTA)), '\\s+', ' ') AS direccion_exacta,
+        REGEXP_REPLACE(TRIM(UPPER(CALLE_PRINCIPAL)), '\\s+', ' ') AS calle_principal,
+        REGEXP_REPLACE(TRIM(UPPER(CALLE_SECUNDARIA)), '\\s+', ' ') AS calle_secundaria,
 
-        -- Coordenadas: validar rangos geograficos
+        -- Coordenadas
         CASE 
-            WHEN latitud BETWEEN -90 AND 90 THEN ROUND(latitud, 6)
+            WHEN LATITUD BETWEEN -90 AND 90 THEN ROUND(LATITUD, 6)
             ELSE NULL 
         END AS latitud,
         CASE 
-            WHEN longitud BETWEEN -180 AND 180 THEN ROUND(longitud, 6)
+            WHEN LONGITUD BETWEEN -180 AND 180 THEN ROUND(LONGITUD, 6)
             ELSE NULL 
         END AS longitud,
 
         -- Tipo de accidente
         TRIM(UPPER(
             CASE 
-                WHEN tipo_accidente IS NULL OR TRIM(tipo_accidente) = '' THEN 'NO ESPECIFICADO'
-                ELSE tipo_accidente 
+                WHEN TIPO_ACCIDENTE IS NULL OR TRIM(TIPO_ACCIDENTE) = '' THEN 'NO ESPECIFICADO'
+                ELSE TIPO_ACCIDENTE 
             END
         )) AS tipo_accidente,
 
         -- Causa del accidente 
         TRIM(UPPER(
             CASE 
-                WHEN causa_accidente IS NULL OR TRIM(causa_accidente) = '' THEN 'NO ESPECIFICADO'
-                ELSE causa_accidente 
+                WHEN CAUSA_ACCIDENTE IS NULL OR TRIM(CAUSA_ACCIDENTE) = '' THEN 'NO ESPECIFICADO'
+                ELSE CAUSA_ACCIDENTE 
             END
         )) AS causa_accidente,
 
         -- Clima
         TRIM(UPPER(
             CASE 
-                WHEN clima IS NULL OR TRIM(clima) = '' THEN 'NO ESPECIFICADO'
-                ELSE clima 
+                WHEN CLIMA IS NULL OR TRIM(CLIMA) = '' THEN 'NO ESPECIFICADO'
+                ELSE CLIMA 
             END
         )) AS clima,
 
-        -- Gravedad: validar dominio
+        -- Gravedad
         TRIM(UPPER(
             CASE 
-                WHEN gravedad_accidente_reportada IS NULL 
-                     OR TRIM(gravedad_accidente_reportada) = '' 
+                WHEN GRAVEDAD_ACCIDENTE_REPORTADA IS NULL 
+                     OR TRIM(GRAVEDAD_ACCIDENTE_REPORTADA) = '' 
                 THEN 'LEVE'
-                WHEN UPPER(TRIM(gravedad_accidente_reportada)) NOT IN (
+                WHEN UPPER(TRIM(GRAVEDAD_ACCIDENTE_REPORTADA)) NOT IN (
                     'LEVE', 'MODERADO', 'GRAVE', 'MORTAL'
                 ) THEN 'LEVE'
-                ELSE gravedad_accidente_reportada
+                ELSE GRAVEDAD_ACCIDENTE_REPORTADA
             END
         )) AS gravedad_accidente,
 
-        -- Unidad policial (en mayusculas)
+        -- Unidad policial
         TRIM(UPPER(
             CASE 
-                WHEN unidad_policial IS NULL OR TRIM(unidad_policial) = '' THEN 'NO ESPECIFICADO'
-                ELSE unidad_policial 
+                WHEN UNIDAD_POLICIAL IS NULL OR TRIM(UNIDAD_POLICIAL) = '' THEN 'NO ESPECIFICADO'
+                ELSE UNIDAD_POLICIAL 
             END
         )) AS unidad_policial,
 
         TRIM(UPPER(
             CASE 
-                WHEN unidad_policial_macrodistrito IS NULL OR TRIM(unidad_policial_macrodistrito) = '' THEN 'NO ESPECIFICADO'
-                ELSE unidad_policial_macrodistrito 
+                WHEN UNIDAD_POLICIAL_MACRODISTRITO IS NULL OR TRIM(UNIDAD_POLICIAL_MACRODISTRITO) = '' THEN 'NO ESPECIFICADO'
+                ELSE UNIDAD_POLICIAL_MACRODISTRITO 
             END
         )) AS unidad_policial_macrodistrito,
 
-        -- Cantidades: validar positivas
+        -- Cantidades
         CASE 
-            WHEN cantidad_vehiculos_reportados < 0 THEN NULL
-            WHEN cantidad_vehiculos_reportados > 50 THEN NULL
-            ELSE cantidad_vehiculos_reportados
+            WHEN CANTIDAD_VEHICULOS_REPORTADOS < 0 THEN NULL
+            WHEN CANTIDAD_VEHICULOS_REPORTADOS > 50 THEN NULL
+            ELSE CANTIDAD_VEHICULOS_REPORTADOS
         END AS cantidad_vehiculos,
 
         CASE 
-            WHEN cantidad_personas_reportados < 0 THEN NULL
-            WHEN cantidad_personas_reportados > 100 THEN NULL
-            ELSE cantidad_personas_reportados
+            WHEN CANTIDAD_PERSONAS_REPORTADOS < 0 THEN NULL
+            WHEN CANTIDAD_PERSONAS_REPORTADOS > 100 THEN NULL
+            ELSE CANTIDAD_PERSONAS_REPORTADOS
         END AS cantidad_personas,
 
-        -- Narrativa: limpiar espacios y llevar a mayusculas (respetando Ñ)
-        REGEXP_REPLACE(TRIM(UPPER(narrativa_hechos)), '\\s+', ' ') AS narrativa_hechos,
+        -- Narrativa
+        REGEXP_REPLACE(TRIM(UPPER(NARRATIVA_HECHOS)), '\\s+', ' ') AS narrativa_hechos,
 
-        -- Flags derivados para facilitar analisis
+        -- Flags
         CASE WHEN HOUR(fecha_hora_parsed) BETWEEN 22 AND 23 
                   OR HOUR(fecha_hora_parsed) BETWEEN 0 AND 5 
              THEN TRUE ELSE FALSE 
         END AS es_nocturno,
 
-        CASE WHEN UPPER(TRIM(gravedad_accidente_reportada)) IN ('GRAVE', 'MORTAL') 
+        CASE WHEN UPPER(TRIM(GRAVEDAD_ACCIDENTE_REPORTADA)) IN ('GRAVE', 'MORTAL') 
              THEN TRUE ELSE FALSE 
         END AS es_grave_o_mortal
 
