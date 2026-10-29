@@ -3,15 +3,27 @@
 -- Destino: SEGURIDAD_VIAL_DB.PLATA.PLATA_PERSONAS
 
 WITH fuente_bruta AS (
-    SELECT *
+    SELECT 
+        -- Mapeamos explícitamente desde las columnas de Snowflake
+        COALESCE(NUMERO_DOC, numero_doc) AS numero_doc,
+        COALESCE(TIPO_DOCUMENTO, tipo_documento) AS tipo_documento,
+        COALESCE(NOMBRES, nombres) AS nombres,
+        COALESCE(APELLIDOS, apellidos) AS apellidos,
+        COALESCE(FECHA_NACIMIENTO, fecha_nacimiento) AS fecha_nacimiento,
+        COALESCE(EDAD_DECLARA, edad_declara) AS edad_declara,
+        COALESCE(GENERO, genero) AS genero,
+        COALESCE(NUMERO_LICENCIA, numero_licencia) AS numero_licencia,
+        COALESCE(CATEGORIA_LICENCIA, categoria_licencia) AS categoria_licencia,
+        COALESCE(TELEFONO, telefono) AS telefono,
+        COALESCE(PERFIL_RIESGO, perfil_riesgo) AS perfil_riesgo
     FROM {{ source('la_paz_vial', 'PERSONAS') }}
 ),
 
 deduplicado AS (
     SELECT *,
         ROW_NUMBER() OVER (
-            PARTITION BY NUMERO_DOC
-            ORDER BY NUMERO_DOC
+            PARTITION BY numero_doc
+            ORDER BY numero_doc
         ) AS rn
     FROM fuente_bruta
 ),
@@ -19,9 +31,9 @@ deduplicado AS (
 fechas_parseadas AS (
     SELECT *,
         COALESCE(
-            TRY_TO_DATE(CAST(FECHA_NACIMIENTO AS VARCHAR), 'YYYY-MM-DD'),
-            TRY_TO_DATE(CAST(FECHA_NACIMIENTO AS VARCHAR), 'DD/MM/YYYY'),
-            TRY_TO_DATE(CAST(FECHA_NACIMIENTO AS VARCHAR))
+            TRY_TO_DATE(CAST(fecha_nacimiento AS VARCHAR), 'YYYY-MM-DD'),
+            TRY_TO_DATE(CAST(fecha_nacimiento AS VARCHAR), 'DD/MM/YYYY'),
+            TRY_TO_DATE(CAST(fecha_nacimiento AS VARCHAR))
         ) AS fecha_nacimiento_parsed
     FROM deduplicado
     WHERE rn = 1
@@ -32,12 +44,12 @@ normalizado AS (
         /* =========================================================
            IDENTIFICACIÓN
            ========================================================= */
-        TRIM(UPPER(CAST(NUMERO_DOC AS VARCHAR))) AS numero_documento,
+        TRIM(UPPER(CAST(numero_doc AS VARCHAR))) AS numero_documento,
 
         TRIM(UPPER(
             CASE
-                WHEN TIPO_DOCUMENTO IS NULL OR TRIM(CAST(TIPO_DOCUMENTO AS VARCHAR)) = '' THEN 'CI'
-                ELSE CAST(TIPO_DOCUMENTO AS VARCHAR)
+                WHEN tipo_documento IS NULL OR TRIM(CAST(tipo_documento AS VARCHAR)) = '' THEN 'CI'
+                ELSE CAST(tipo_documento AS VARCHAR)
             END
         )) AS tipo_documento,
 
@@ -46,15 +58,15 @@ normalizado AS (
            ========================================================= */
         TRIM(UPPER(
             CASE
-                WHEN NOMBRES IS NULL OR TRIM(CAST(NOMBRES AS VARCHAR)) = '' THEN 'NO ESPECIFICADO'
-                ELSE CAST(NOMBRES AS VARCHAR)
+                WHEN nombres IS NULL OR TRIM(CAST(nombres AS VARCHAR)) = '' THEN 'NO ESPECIFICADO'
+                ELSE CAST(nombres AS VARCHAR)
             END
         )) AS nombres,
 
         TRIM(UPPER(
             CASE
-                WHEN APELLIDOS IS NULL OR TRIM(CAST(APELLIDOS AS VARCHAR)) = '' THEN 'NO ESPECIFICADO'
-                ELSE CAST(APELLIDOS AS VARCHAR)
+                WHEN apellidos IS NULL OR TRIM(CAST(apellidos AS VARCHAR)) = '' THEN 'NO ESPECIFICADO'
+                ELSE CAST(apellidos AS VARCHAR)
             END
         )) AS apellidos,
 
@@ -64,10 +76,10 @@ normalizado AS (
            EDAD DECLARADA
            ========================================================= */
         CASE
-            WHEN EDAD_DECLARA IS NULL THEN NULL
-            WHEN TRY_TO_NUMBER(CAST(EDAD_DECLARA AS VARCHAR)) < 0 THEN NULL
-            WHEN TRY_TO_NUMBER(CAST(EDAD_DECLARA AS VARCHAR)) > 120 THEN NULL
-            ELSE TRY_TO_NUMBER(CAST(EDAD_DECLARA AS VARCHAR))
+            WHEN edad_declara IS NULL THEN NULL
+            WHEN TRY_TO_NUMBER(CAST(edad_declara AS VARCHAR)) < 0 THEN NULL
+            WHEN TRY_TO_NUMBER(CAST(edad_declara AS VARCHAR)) > 120 THEN NULL
+            ELSE TRY_TO_NUMBER(CAST(edad_declara AS VARCHAR))
         END AS edad_declarada,
 
         /* =========================================================
@@ -75,8 +87,8 @@ normalizado AS (
            ========================================================= */
         TRIM(UPPER(
             CASE
-                WHEN GENERO IS NULL OR TRIM(CAST(GENERO AS VARCHAR)) = '' THEN 'NO ESPECIFICADO'
-                ELSE CAST(GENERO AS VARCHAR)
+                WHEN genero IS NULL OR TRIM(CAST(genero AS VARCHAR)) = '' THEN 'NO ESPECIFICADO'
+                ELSE CAST(genero AS VARCHAR)
             END
         )) AS genero,
 
@@ -84,14 +96,14 @@ normalizado AS (
            LICENCIA
            ========================================================= */
         CASE
-            WHEN NUMERO_LICENCIA IS NULL OR TRIM(CAST(NUMERO_LICENCIA AS VARCHAR)) = '' THEN NULL
-            ELSE TRIM(UPPER(CAST(NUMERO_LICENCIA AS VARCHAR)))
+            WHEN numero_licencia IS NULL OR TRIM(CAST(numero_licencia AS VARCHAR)) = '' THEN NULL
+            ELSE TRIM(UPPER(CAST(numero_licencia AS VARCHAR)))
         END AS numero_licencia,
 
         TRIM(UPPER(
             CASE
-                WHEN CATEGORIA_LICENCIA IS NULL OR TRIM(CAST(CATEGORIA_LICENCIA AS VARCHAR)) = '' THEN 'SIN LICENCIA'
-                ELSE CAST(CATEGORIA_LICENCIA AS VARCHAR)
+                WHEN categoria_licencia IS NULL OR TRIM(CAST(categoria_licencia AS VARCHAR)) = '' THEN 'SIN LICENCIA'
+                ELSE CAST(categoria_licencia AS VARCHAR)
             END
         )) AS categoria_licencia,
 
@@ -99,8 +111,8 @@ normalizado AS (
            CONTACTO
            ========================================================= */
         CASE
-            WHEN TELEFONO IS NULL OR TRIM(CAST(TELEFONO AS VARCHAR)) = '' THEN NULL
-            ELSE TRIM(CAST(TELEFONO AS VARCHAR))
+            WHEN telefono IS NULL OR TRIM(CAST(telefono AS VARCHAR)) = '' THEN NULL
+            ELSE TRIM(CAST(telefono AS VARCHAR))
         END AS telefono,
 
         /* =========================================================
@@ -108,9 +120,9 @@ normalizado AS (
            ========================================================= */
         TRIM(UPPER(
             CASE
-                WHEN PERFIL_RIESGO IS NULL OR TRIM(CAST(PERFIL_RIESGO AS VARCHAR)) = '' THEN 'BAJO'
-                WHEN UPPER(TRIM(CAST(PERFIL_RIESGO AS VARCHAR))) NOT IN ('ALTO', 'MODERADO', 'BAJO') THEN 'BAJO'
-                ELSE CAST(PERFIL_RIESGO AS VARCHAR)
+                WHEN perfil_riesgo IS NULL OR TRIM(CAST(perfil_riesgo AS VARCHAR)) = '' THEN 'BAJO'
+                WHEN UPPER(TRIM(CAST(perfil_riesgo AS VARCHAR))) NOT IN ('ALTO', 'MODERADO', 'BAJO') THEN 'BAJO'
+                ELSE CAST(perfil_riesgo AS VARCHAR)
             END
         )) AS perfil_riesgo,
 
