@@ -13,24 +13,11 @@ deduplicado AS (
     FROM fuente_bruta
 ),
 
--- 2. PARSEO DE FECHAS SEGURO (evitando conflictos de tipos en Snowflake)
+-- 2. PARSEO DE FECHAS SEGURO
 fechas_parseadas AS (
     SELECT *,
-        CASE 
-            WHEN FECHA_HORA IS NULL THEN NULL
-            -- Si ya viene como timestamp/fecha, lo usamos directamente
-            WHEN TYPEOF(FECHA_HORA) LIKE '%TIMESTAMP%' OR TYPEOF(FECHA_HORA) LIKE '%DATE%' 
-                THEN CAST(FECHA_HORA AS TIMESTAMP_NTZ)
-            -- Si viene como texto, intentamos parsearlo con los formatos posibles
-            ELSE COALESCE(
-                TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD HH24:MI:SS.FF3'),
-                TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD HH24:MI:SS'),
-                TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD HH24:MI'),
-                TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'YYYY-MM-DD'),
-                TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'DD/MM/YYYY HH24:MI:SS'),
-                TRY_TO_TIMESTAMP(CAST(FECHA_HORA AS VARCHAR), 'DD/MM/YYYY')
-            )
-        END AS fecha_hora_parsed
+        -- Como FECHA_HORA ya viene como TIMESTAMP_NTZ desde Snowflake, la usamos directamente o la parseamos si fuera texto
+        CAST(FECHA_HORA AS TIMESTAMP_NTZ) AS fecha_hora_parsed
     FROM deduplicado
     WHERE rn = 1
 ),
